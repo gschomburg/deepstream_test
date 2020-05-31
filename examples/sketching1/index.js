@@ -10,6 +10,131 @@ let tempUsers={}; //object of shared users
 //Important Stuff
 //https://p5js.org/reference/#/p5
 
+
+/////////////////////////////////////
+//User Manager Class
+// A simple Particle class
+// let UserManager = function() {
+//   // this.acceleration = createVector(0, 0.05);
+//   // this.velocity = createVector(random(-1, 1), random(-1, 0));
+//   // this.position = position.copy();
+//   // this.lifespan = 255;
+//   this.localUserUUID="";
+//   this.remoteUsersUUID={};
+//   this.refreshUsersTimeout=4000; //4 seconds
+// };
+// //setup the user and remote users
+// UserManager.prototype.init = function(){
+//   this.localUserUUID=this.uuidv4;
+// };
+// //generate a unique id
+// //TODO could also store this in local storage so that we'd always get the same uuid
+// UserManager.prototype.uuidv4 = function(){
+//   let base = 'xxxxxyxx';
+//   return base.replace(/[xy]/g, function(c) {
+//     var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+//     return v.toString(16);
+//   });
+// };
+class UserManager {
+  
+  //called in preload
+  constructor(globalShare) {
+    this.ns="usr_";
+    this.shared = getSharedData(this.ns + "UserManager")
+    this.localUserUUID=this.uuidv4();
+    
+    this.localUser = getSharedData(this.ns + this.localUserUUID);
+    this.remoteUsers={}; //dictionary of shared objects | only remote users (not local user)
+
+    this.refreshUsersTimeout=4000; //4 seconds
+    this.refreshTimer;
+  }
+  //setup
+  //called from setup
+  init() {
+    this.shared.userIds = this.shared.userIds || [];
+    this.shared.userIds.push(this.localUserUUID);
+
+    this.refreshTimer = setInterval(this.refreshUsers, 1000);
+  }
+  uuidv4() {
+    let base = 'xxxxxyxx';
+    return base.replace(/[xy]/g, function(c) {
+      var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+      return v.toString(16);
+    });
+  }
+  refreshUsers(){
+    console.log("checking users: " + this.shared.userIds.length)
+    for(const userID of this.shared.userIds){
+      this.setupOtherUser(userID)
+    }
+    // let timeout=4000; //milli seconds
+    if(isHost()){
+      //clear out old/unused users
+      let now = Date.now();
+      for(let i= this.shared.userIds.length-1; i>=0; i--){
+        let data = this.getUserData(this.shared.userIds[i]);
+        if(data!=null){
+          if(data.lastPing < now - this.refreshUsersTimeout){
+            //remove from the list
+            shared.userIds.splice(i, 1);
+          }
+        }else{
+          console.log('data is null:' + shared.userIds[i]);
+        }
+      }
+    }
+  }
+  setupOtherUser(userID){
+    console.log('userID:' +userID);
+    if(userID != this.localUserUUID && (this.remoteUsers[userID]==null ||this.shared.userIds[userID]==undefined)){
+      // tempUsers!=undefined 
+      console.log("setting up user:" + userID);
+      console.log(this.remoteUsers[userID]);
+      this.remoteUsers[userID] = getSharedData(userID);
+      console.log(this.remoteUsers[userID]);
+    }
+  }
+  //main methods/accessors
+  getUserData(userID){
+    let u = this.getUser(userID);
+    if(u){
+      return u.data;
+    }
+    return null;
+  }
+  getUser(userID){
+    if(userID == this.localUserUUID){
+      return this.localUser;
+    }
+    if(this.remoteUsers[userID]!=null && this.remoteUsers[userID]!=undefined){
+      return this.remoteUsers[userID];
+    }
+    return null;
+  }
+  getLocalUser(){
+    return this.getUser(this.localUserUUID);
+  }
+  getRemoteUsersList(){
+    return this.remoteUsers;
+  }
+  //get string ids for all users
+  getAllUserIds(){
+    return this.shared.userIds;
+  }
+  clearUsers(){
+    if(isHost()){
+      console.log("clearing server");
+      this.shared.userIds = [];
+    }else{
+      console.log('only host can clear users');
+    }
+  }
+}
+/////////////////////////////////////
+
 let canvasMarginX=40;
 let canvasMarginY=60;
 let colors; //list of colors.. or sample from an image
@@ -99,11 +224,11 @@ function setupOtherUsers(userID){
     console.log(tempUsers[userID]);
   }
 }
-function setupUser(userID){
-  if(this[userID]==null){
-    console.log("getting user");
-  }
-}
+// function setupUser(userID){
+//   if(this[userID]==null){
+//     console.log("getting user");
+//   }
+// }
 function getUserData(userID){
   //get valid user data
   if(userID == myUUID){
