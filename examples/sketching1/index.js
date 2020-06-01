@@ -50,6 +50,7 @@ function drawUserRainbow(){
 function drawCursors(){
   let userList = userMNGR.getAllUserIds();
   for(const userID of userList){
+    drawCursorHistory(userID);
     drawUserCursor(userID);
   }
 }
@@ -72,6 +73,25 @@ function drawUserCursor(userID){
     // textFont("Avenir");
     textAlign(LEFT);
     text("user:" + userData.uuid, userData.x+radius+2, userData.y+4);
+  pop();
+}
+function drawCursorHistory(userID){
+  let userData = userMNGR.getUserData(userID);
+  if(userData==null || userData.path.length<1){
+    // console.log("user data is null")
+    return;
+  }
+  push();
+  stroke(userData.color);
+  let lastM = userData.path[0];
+  for(let i =1; i<userData.path.length; i++){
+    let p1 = createVector(lastM.x, lastM.y)
+    let p2 = createVector(userData.path[i].x, userData.path[i].y)
+    let d = p1.dist(p2);
+    strokeWeight(d*.1);
+    line(p1.x, p1.y,p2.x, p2.y);
+    lastM = userData.path[i];
+  }
   pop();
 }
 
@@ -97,27 +117,63 @@ function setup() {
     {
       'x':mouseX,
       'y':mouseY,
+      'path':[], //history
       'color':GetRandomColor().toString()
     }
   )
   const clearButton = createButton("Clear User List").mousePressed(clearClicked);
+  const checkbox = createCheckbox('showRaindbow', false);
+  checkbox.changed(toggleRainbow);
+}
+let rainBowOn=false;
+function toggleRainbow() {
+  if (this.checked()) {
+    // console.log('Checking!');
+    rainBowOn=true;
+  } else {
+    // console.log('Unchecking!');
+    rainBowOn=false;
+  }
 }
 function clearClicked(){
   userMNGR.clearUsers();
+}
+function addMouseHistory(mouse){
+  let local = userMNGR.getLocalUser();
+  let minDis = 10;
+  if(local.data.path.length>0){
+    let lastMouse = createVector(local.data.path[local.data.path.length - 1].x, local.data.path[local.data.path.length - 1].y);
+    let newMouse = createVector(mouse.x, mouse.y);
+    if(lastMouse.dist(newMouse) > minDis){
+      local.data.path.push(mouse);
+    }
+  }else{
+    local.data.path.push(mouse);
+  }
+  while(local.data.path.length>20){
+    local.data.path.shift();
+  }
 }
 
 function draw() {
   background(0);
   noStroke();
 
+  let mouse = {
+    'x':mouseX,
+    'y':mouseY
+  }
+  addMouseHistory(mouse);
+  
   //update local user data
   userMNGR.updateLocalUser({
     'x':mouseX,
     'y':mouseY,
     'lastPing':Date.now()
   });
-
-  drawUserRainbow();
+  if(rainBowOn){
+    drawUserRainbow();
+  }
   drawCursors();
 }
 
@@ -156,18 +212,8 @@ class UserManager {
       this.localUser.data = {
         uuid:this.localUserUUID,
         lastPing:Date.now(),
-        // x: mouseX,
-        // y: mouseY,
-        // color: 'red'
       }
     }
-    // this.localUser.data = {
-    //   uuid:myUUID,
-    //   lastPing:Date.now(),
-    //   x: mouseX,
-    //   y: mouseY,
-    //   color: 'red'
-    // }
     console.log("setting up user ids here!");
     this.shared.userIds = this.shared.userIds || [];
     this.shared.userIds.push(this.localUserUUID);
